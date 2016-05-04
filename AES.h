@@ -1,9 +1,16 @@
+//
+//  AES.h
+//  AES
+//
+//  Created by benny on 16/4/22.
+//
+
 #ifndef AES_h
 #define AES_h
 
 #include "Fundamental.h"
 
-#define AFFINE_MATRIX  0x8F
+#define AFFINE_MATRIX  0xF8
 #define AFFINE_C       0x63
 
 #define MIX_COL_A(cond) MIX_COL_A_ ## cond
@@ -25,5 +32,7 @@
 #define RCONST_9       0x1B
 #define RCONST_10      0x36
 
-BYTE *encrypt(const BYTE *plain, const BYTE **key);
+
+BYTE *keyExpansion(const BYTE *key);
+BYTE *encrypt(const BYTE *plain, const BYTE *key);
 #endif

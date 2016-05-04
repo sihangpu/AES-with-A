@@ -1,3 +1,10 @@
+//
+//  Fundamental.h
+//  AES
+//
+//  Created by benny on 16/4/22.
+//
+
 #ifndef Fundamental_h
 #define Fundamental_h
 
@@ -82,6 +89,10 @@
 
 
 typedef unsigned char BYTE;
+
+BYTE invGF(BYTE x);
+
+BYTE *multiplyMat(const BYTE *matx, const BYTE *maty, int *dims);
 
 BYTE powGF(BYTE base, int exp);
 

@@ -1,3 +1,9 @@
+//
+//  AES.c
+//  AES
+//
+//  Created by benny on 16/4/22.
+//
 #include "AES.h"
 
 
@@ -10,9 +16,9 @@ BYTE affineTransform(BYTE b){
 	BYTE row = AFFINE_MATRIX;
 	for (bit = 0; bit < BITS; ++bit){
 		BYTE toAdd = (BYTE)_mm_popcnt_u32(row & b) & 0x01;
-		toAdd <<= bit;
+		toAdd <<= (BITS - 1 - bit);
 		ret ^= toAdd;
-		row = ROTATE_RIGHT(row, 1, BITS);
+		row = ROTATE_RIGHT(row, BITS, 1);
 	}
 	ret ^= AFFINE_C;
 	return ret;
@@ -35,44 +41,39 @@ void shiftRows(BYTE *toShift){
 	int colIndex;
 	int rowIndex;
 	int bytes = WORD_SIZE * NB;
-	BYTE *ret = (BYTE*)malloc(bytes * sizeof(BYTE));
+	BYTE orig[WORD_SIZE * NB];
+	memcpy(orig, toShift, bytes * sizeof(BYTE));
 	for (rowIndex = 0; rowIndex < WORD_SIZE; ++rowIndex){
 		for (colIndex = 0; colIndex < NB; ++colIndex){
 			int newIndex = rowIndex * NB + colIndex;
 			int origIndex = rowIndex * NB + PLUS_MOD(colIndex, rowIndex, NB);
-			ret[newIndex] = toShift[origIndex];
+			toShift[newIndex] = orig[origIndex];
 		}
 	}
-	BYTE *toFree = toShift;
-	toShift = ret;
-	free(toFree);
 }
 
 static
 void mixColumns(BYTE *toMix){
 	BYTE mixColA[WORD_SIZE] = { MIX_COL_A_0, MIX_COL_A_1, MIX_COL_A_2, MIX_COL_A_3 };
-	BYTE *ret = (BYTE*)malloc(WORD_SIZE*NB*sizeof(BYTE));
 	int wordIndex;
 	for (wordIndex = 0; wordIndex < NB; ++wordIndex){
 		BYTE toMulti[WORD_SIZE] = { toMix[wordIndex], toMix[NB + wordIndex], toMix[NB * 2 + wordIndex], toMix[NB * 3 + wordIndex] };
 		BYTE *wordTem = modularProduct(mixColA, toMulti);
 		int rowIndex;
 		for (rowIndex = 0; rowIndex < WORD_SIZE; ++rowIndex){
-			ret[rowIndex * NB + wordIndex] = wordTem[rowIndex];
+			toMix[rowIndex * NB + wordIndex] = wordTem[rowIndex];
 		}
 		free(wordTem);
 	}
-	BYTE *toFree = toMix;
-	toMix = ret;
-	free(toFree);
 }
 
 static
 void addRoundKey(BYTE *toAdd, const BYTE* keyScheduled){
-	int stateIndex;
-	int bytes = NB * WORD_SIZE;
-	for (stateIndex = 0; stateIndex < bytes; ++stateIndex){
-		toAdd[stateIndex] ^= keyScheduled[stateIndex];
+	int i, j;
+	for (i = 0; i < WORD_SIZE; ++i){
+		for (j = 0; j < NB; ++j){
+			toAdd[i * NB + j] ^= keyScheduled[j * WORD_SIZE + i];
+		}
 	}
 }
 
@@ -146,9 +147,7 @@ void rconst(BYTE *word,int i){
 }
 
 
-static
-BYTE **keyExpansion(const BYTE *key){
-	BYTE **ret = (BYTE **)malloc((NR + 1) * sizeof(BYTE *));
+BYTE *keyExpansion(const BYTE *key){
 	BYTE *words = (BYTE *)malloc(NB*(NR + 1)*WORD_SIZE * sizeof(BYTE));
 
 	int keySize = WORD_SIZE * NK;
@@ -170,14 +169,11 @@ BYTE **keyExpansion(const BYTE *key){
 		int j;
 		for (j = 0; j < WORD_SIZE; ++j){
 			int index = i * WORD_SIZE + j;
-			words[index] = words[index - NK] ^ temp[j];
+			words[index] = words[index - NK * WORD_SIZE] ^ temp[j];
 		}
 	}
 	free(temp);
-	for (i = 0; i < NR + 1; ++i){
-		ret[i] = words + i * WORD_SIZE * NB;
-	}
-	return ret;
+	return words;
 }
 
 
@@ -186,21 +182,23 @@ BYTE **keyExpansion(const BYTE *key){
  */
 BYTE *encrypt(const BYTE *plainText, const BYTE *cipherKey){
 	BYTE *state = toState(plainText);
-	BYTE **roundKey = keyExpansion(cipherKey);
-	addRoundKey(state, roundKey[0]);
+	BYTE *roundKey = keyExpansion(cipherKey);
+	addRoundKey(state, roundKey);
 
 	int roundIndex;
 	for (roundIndex = 1; roundIndex < NR; ++roundIndex){
 		subBytes(state);
 		shiftRows(state);
 		mixColumns(state);
-		addRoundKey(state, roundKey[roundIndex]);
+		addRoundKey(state, roundKey+ roundIndex * WORD_SIZE * NB);
 	}
 	subBytes(state);
 	shiftRows(state);
-	addRoundKey(state, roundKey[NR]);
+	addRoundKey(state, roundKey + NR * WORD_SIZE * NB);
 
 	BYTE *cipherText = toOutput(state);
+	
 	free(state);
+	free(roundKey);
 	return cipherText;
 }
