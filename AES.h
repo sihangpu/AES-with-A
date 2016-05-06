@@ -33,6 +33,6 @@
 #define RCONST_10      0x36
 
 
-BYTE *keyExpansion(const BYTE *key);
-BYTE *encrypt(const BYTE *plain, const BYTE *key);
+Res keyExpansion(BYTE *expanded, const BYTE *key);
+Res encrypt(BYTE *encRes, const BYTE *plain, const BYTE *key);
 #endif

@@ -7,35 +7,34 @@
 
 #include "Fundamental.h"
 
+static
+BYTE  matA[A_SIZE], matInvA[A_SIZE], matTransA[A_SIZE];
+BYTE  matC[A_SIZE * A_SIZE];
 
-BYTE  *matA, *matInvA, *matTransA, **matICA;
+const
+BYTE lookupTable[256] = POP_CONT;
 
-
-
+_inline
 BYTE  powGF(BYTE base, int exp){
 	int dim[4] = { 1, BITS, BITS, BITS };
+	BYTE *tem = (BYTE *)malloc(dim[0] * dim[2] * sizeof(BYTE));
+	memset(tem, 0, dim[0] * dim[2] * sizeof(BYTE));
 	if (exp == 2){
 		BYTE coeff[BITS] = MAT_POW(2);
-		BYTE *tem = multiplyMat(&base, coeff, dim);
-		BYTE rslt = *tem;
-		free(tem);
-		return rslt;
+		Res res = multiplyMat(tem, &base, coeff, dim);
 	}
 	else if (exp == 4){
 		BYTE coeff[BITS] = MAT_POW(4);
-		BYTE *tem = multiplyMat(&base, coeff, dim);
-		BYTE rslt = *tem;
-		free(tem);
-		return rslt;
+		Res res = multiplyMat(tem, &base, coeff, dim);
 	}
 	else if (exp == 16){
 		BYTE coeff[BITS] = MAT_POW(16);
-		BYTE *tem = multiplyMat(&base, coeff, dim);
-		BYTE rslt = *tem;
-		free(tem);
-		return rslt;
+		Res res = multiplyMat(tem, &base, coeff, dim);
 	}
-	else return 0xFF;
+	else { free(tem); return 0x00; }
+	BYTE rslt = *tem;
+	free(tem);
+	return rslt;
 }
 
 
@@ -46,13 +45,13 @@ BYTE invGF(BYTE x){
 	//BYTE z = powGF(x, 2);
 	BYTE z = multiplyGF(x, x);
 	BYTE y = multiplyGF(z, x);
-	
+
 	//BYTE w = powGF(y, 4);
 	BYTE w = multiplyGF(y, y);
-	w = multiplyGF(w,w);
+	w = multiplyGF(w, w);
 
 	y = multiplyGF(y, w);
-	
+
 	//y = powGF(y, 16);
 	y = multiplyGF(y, y);
 	y = multiplyGF(y, y);
@@ -67,62 +66,76 @@ BYTE invGF(BYTE x){
 /* Modular product of a(x) and b(x), where a(x) and b(x) both are four-term polynomials,
  * with coefficients that are finite field elements.
  */
-BYTE *modularProduct(const BYTE *wordx, const BYTE *wordy){
-	BYTE *ret = (BYTE *)malloc(WORD_SIZE * sizeof(BYTE));
+Res modularProduct(BYTE *mpRes, const BYTE *wordx, const BYTE *wordy){
 	int i;
+
+	if (mpRes == NULL) return RES_INVALID_POINTER;
+	//BYTE *ret = (BYTE *)malloc(WORD_SIZE * sizeof(BYTE));
+
 	for (i = 0; i < WORD_SIZE; ++i){
 		int j, k;
-		ret[i] = ZERO;
+		mpRes[i] = ZERO;
 		for (j = 0, k = i; j < WORD_SIZE; ++j, k = MINUS_MOD(k, 1, WORD_SIZE)){
 			if (wordx[k] == 0x01){
-				ret[i] ^= wordy[j];
+				mpRes[i] ^= wordy[j];
 			}
 			else{
 				BYTE tem = multiplyGF(wordx[k], wordy[j]);
-				ret[i] ^= tem;
+				mpRes[i] ^= tem;
 			}
 
 		}
 	}
-	return ret;
+	return RES_OK;
 }
 
 /* Matrix multiply : mulitplyMat(A, B) = A * B^T
 *  - *dims: points to a array containing the dimension of matrices rx,cx,ry and cy, respectively.
 *  -
 */
-BYTE *multiplyMat(const BYTE *matx, const BYTE *maty, int *dims){
-	if (dims[1] != dims[3]) return NULL; //cx != cy?
-	BYTE *matProd = (BYTE *)malloc(dims[0] * dims[2] * sizeof(BYTE));
-	memset(matProd, 0, dims[0] * dims[2] * sizeof(BYTE));
+Res multiplyMat(BYTE *mlRes, const BYTE *matx, const BYTE *maty, int *dims){
 	int row, col;
+
+	if (mlRes == NULL) return RES_INVALID_POINTER;
+	if (dims[1] != dims[3]) return RES_INVALID_DIMENSION; //cx != cy?
+	//BYTE *matProd = (BYTE *)malloc(dims[0] * dims[2] * sizeof(BYTE));
+	//memset(matProd, 0, dims[0] * dims[2] * sizeof(BYTE));
+
 	/* the bytes of a row
 	*/
 	int rowSizeX = dims[1] % BITS ? (dims[1] / BITS) + 1 : dims[1] / BITS;
 	int rowSizeR = dims[2] % BITS ? (dims[2] / BITS) + 1 : dims[2] / BITS;
 
-	for (row = 0; row < dims[0]; ++row){
-		for (col = 0; col < dims[2]; ++col){
+	for (row = 0; row != dims[0]; ++row){
+		for (col = 0; col != dims[2]; ++col){
+			int i;
 			int index = col / BITS;
 			int offset = col % BITS;
-			BYTE *ptrR = matProd + row * rowSizeR + index;
+			BYTE *ptrR = mlRes + row * rowSizeR + index;
 			const BYTE *ptrX = matx + row * rowSizeX;
 			const BYTE *ptrY = maty + col * rowSizeX;
-			int i;
-			for (i = 0; i < rowSizeX; ++i, ++ptrX, ++ptrY){
-				BYTE tem = (BYTE)_mm_popcnt_u32((*ptrX) & (*ptrY)) & 0x01;
-				tem <<= (BITS - 1 - offset);
+			for (i = 0; i != rowSizeX; ++i, ++ptrX, ++ptrY){
+				/* Using
+				 *	 - popcount(): the result is a num, need to cast
+				 *   - lookupTable: the result bit stores at the MSB
+				 */
+
+				//BYTE tem = (BYTE)_mm_popcnt_u32((*ptrX) & (*ptrY)) & 0x01;
+				//tem <<= (BITS - 1 - offset);
+
+				BYTE tem = lookupTable[(*ptrX) & (*ptrY)];
+				tem >>= offset;
 				(*ptrR) ^= tem;
 			}
 		}
 	}
-	return matProd;
+	return RES_OK;
 }
 
 
 /* Multiplication over GF(2^8),and the irreducible polynomial is 0x011b
  */
-BYTE multiplyGF(BYTE bytex,  BYTE bytey){
+BYTE multiplyGF(BYTE bytex, BYTE bytey){
 	int bit;
 	BYTE sum = ZERO;
 	BYTE toAdd = bytex;
@@ -240,7 +253,7 @@ BYTE multiplyGFNew_EA(BYTE bytex, BYTE bytey){
 }
 
 
-BYTE *multiplyGFMasked(const BYTE *byteXs, const BYTE *byteYs){
+Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs){
 
 	/* get matrix T
 	 */
@@ -287,7 +300,9 @@ BYTE *multiplyGFMasked(const BYTE *byteXs, const BYTE *byteYs){
 				int dim[4] = { 1, BITS, A_SIZE, A_SIZE };
 				/* since dim[0] == 1, the production is absolutely a vector(BYTE)
 				 */
-				BYTE *tem = multiplyMat(matR+j, matA, dim);
+				BYTE *tem = (BYTE *)malloc(dim[0] * dim[2] * sizeof(BYTE));
+				memset(tem, 0, dim[0] * dim[2] * sizeof(BYTE));
+				Res res = multiplyMat(tem, matR + j, matA, dim);
 				matR[j] = *tem;
 				free(tem);
 			}
@@ -306,7 +321,7 @@ BYTE *multiplyGFMasked(const BYTE *byteXs, const BYTE *byteYs){
 		}
 	}
 
-	return matRet;
+	return RES_OK;
 }
 
 static

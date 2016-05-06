@@ -76,6 +76,22 @@
 1	1	1	1	0	1	0	1
 */
 
+#define POP_CONT  {	0, 128, 128, 0, 128, 0, 0, 128, 128, 0, 0, 128, 0, 128, 128, 0,\
+					128, 0, 0, 128, 0, 128, 128, 0, 0, 128, 128, 0, 128, 0, 0, 128,\
+					128, 0, 0, 128, 0, 128, 128, 0, 0, 128, 128, 0, 128, 0, 0, 128,\
+					0, 128, 128, 0, 128, 0, 0, 128, 128, 0, 0, 128, 0, 128, 128, 0,\
+					128, 0, 0, 128, 0, 128, 128, 0, 0, 128, 128, 0, 128, 0, 0, 128,\
+					0, 128, 128, 0, 128, 0, 0, 128, 128, 0, 0, 128, 0, 128, 128, 0,\
+					0, 128, 128, 0, 128, 0, 0, 128, 128, 0, 0, 128, 0, 128, 128, 0,\
+					128, 0, 0, 128, 0, 128, 128, 0, 0, 128, 128, 0, 128, 0, 0, 128,\
+					128, 0, 0, 128, 0, 128, 128, 0, 0, 128, 128, 0, 128, 0, 0, 128,\
+					0, 128, 128, 0, 128, 0, 0, 128, 128, 0, 0, 128, 0, 128, 128, 0,\
+					0, 128, 128, 0, 128, 0, 0, 128, 128, 0, 0, 128, 0, 128, 128, 0,\
+					128, 0, 0, 128, 0, 128, 128, 0, 0, 128, 128, 0, 128, 0, 0, 128,\
+					0, 128, 128, 0, 128, 0, 0, 128, 128, 0, 0, 128, 0, 128, 128, 0,\
+					128, 0, 0, 128, 0, 128, 128, 0, 0, 128, 128, 0, 128, 0, 0, 128,\
+					128, 0, 0, 128, 0, 128, 128, 0, 0, 128, 128, 0, 128, 0, 0, 128,\
+					0, 128, 128, 0, 128, 0, 0, 128, 128, 0, 0, 128, 0, 128, 128, 0,}
 
 #define CAT(a, ...) PRIMITIVE_CAT(a, __VA_ARGS__)
 #define PRIMITIVE_CAT(a, ...) a ## __VA_ARGS__
@@ -90,15 +106,22 @@
 
 typedef unsigned char BYTE;
 
-BYTE invGF(BYTE x);
+typedef enum
+{
+	RES_OK = 0,
+	RES_INVALID_DIMENSION,
+	RES_INVALID_POINTER,
+	RES_INVALID_VECT,
 
-BYTE *multiplyMat(const BYTE *matx, const BYTE *maty, int *dims);
+}Res;
+
+BYTE invGF(BYTE x);
 
 BYTE powGF(BYTE base, int exp);
 
-BYTE invGF(BYTE x);
+Res multiplyMat(BYTE *mlres, const BYTE *matx, const BYTE *maty, int *dims);
 
-BYTE *modularProduct(const BYTE *wordx, const BYTE *wordy);
+Res modularProduct(BYTE *mpRes, const BYTE *wordx, const BYTE *wordy);
 
 BYTE multiplyGF(BYTE bytex, BYTE bytey);
 
