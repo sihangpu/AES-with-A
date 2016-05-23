@@ -8,9 +8,13 @@
 #ifndef AES_h
 #define AES_h
 
+
+/* ---------------- MAY NOT CHANGE THE FOLLOWING SETTINGS -----------------
+*/
+
 #include "Fundamental.h"
 
-#define AFFINE_MATRIX  0xF8
+#define AFFINE_MATRIX  {	0xF8, 0x7C, 0x3E, 0x1F, 0x8F, 0xC7, 0xE3, 0xF1	}
 #define AFFINE_C       0x63
 
 #define MIX_COL_A(cond) MIX_COL_A_ ## cond
@@ -33,6 +37,8 @@
 #define RCONST_10      0x36
 
 
+Res setup4AES();
 Res keyExpansion(BYTE *expanded, const BYTE *key);
 Res encrypt(BYTE *encRes, const BYTE *plain, const BYTE *key);
+Res encrypt_fixed();
 #endif
