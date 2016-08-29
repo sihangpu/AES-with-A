@@ -14,21 +14,16 @@ BYTE  matICA[SIZE_A][SIZE_A] = { 0 }, matIC[SIZE_A][SIZE_A] = { 0 };
 
 const
 BYTE lookupTable[256] = POP_CONT;
-//static 
 const
 BYTE mod8[] = MOD;
-static const
+const
 BYTE div8[] = DIV;
 
+BYTE coeffA[3][BITS] = { 0 }, coeff[3][BITS] = { MAT_POW(2), MAT_POW(4), MAT_POW(16) };
 
-/* Shift bit form j -> i */
-//_inline
+/* Shift bits form j -> i */
 static
-BYTE shiftBit(
-BYTE orig,
-int i,
-int j
-)
+BYTE shiftBit(BYTE orig, int i, int j)
 {
     BYTE tem;
     tem = (UNIT_BYTE >> j) & orig;
@@ -40,10 +35,7 @@ int j
 }
 
 /* Calculate the # of bytes in one row */
-//_inline
-int bytesOfRow(
-int col
-)
+int bytesOfRow(int col)
 {
     int bytes;
     // bytes of each row :: if dim_col < LENGTH, allocate a byte as well
@@ -56,11 +48,7 @@ int col
 /* Transposition */
 //_inline
 //static
-Res transpose(
-    BYTE *transRes,
-    const BYTE *matOrig,
-    const int *dims
-    )
+Res transpose(BYTE *transRes, const BYTE *matOrig, const int *dims)
 {
     int colOrig, rowOrig;
     int cntBytesOrig, cntBytesRet;
@@ -97,49 +85,28 @@ Res transpose(
 }
 
 
-BYTE  powGF(BYTE base, int exp){
+BYTE  powGF(BYTE base, int expIndex){
     int dim[4] = { 1, BITS, BITS, BITS };
-    BYTE *tem = (BYTE *)malloc(dim[0] * dim[2] * sizeof(BYTE));
-    memset(tem, 0, dim[0] * dim[2] * sizeof(BYTE));
-    if (exp == 2){
-        BYTE coeff[BITS] = MAT_POW(2);
-        Res res = multiplyMat(tem, &base, coeff, dim);
-    }
-    else if (exp == 4){
-        BYTE coeff[BITS] = MAT_POW(4);
-        Res res = multiplyMat(tem, &base, coeff, dim);
-    }
-    else if (exp == 16){
-        BYTE coeff[BITS] = MAT_POW(16);
-        Res res = multiplyMat(tem, &base, coeff, dim);
-    }
-    else { free(tem); return ZERO; }
-    BYTE rslt = *tem;
-    free(tem);
-    return rslt;
+    Res res = RES_OK;
+    BYTE tem = ZERO;
+    res = multiplyMat(&tem, &base, coeff[expIndex], dim);
+    return tem;
 }
 
 
 /* Multiplicative inverse of a(x) in GF(2^8)
- */
+*/
 BYTE invGF(BYTE x){
     if (x == ZERO) return ZERO;
-    //BYTE z = powGF(x, 2);
-    BYTE z = multiplyGF(x, x);
+    BYTE z = powGF(x, 0);
 
     BYTE y = multiplyGF(z, x);
 
-    //BYTE w = powGF(y, 4);
-    BYTE w = multiplyGF(y, y);
-    w = multiplyGF(w, w);
+    BYTE w = powGF(y, 1);
 
     y = multiplyGF(y, w);
 
-    //y = powGF(y, 16);
-    y = multiplyGF(y, y);
-    y = multiplyGF(y, y);
-    y = multiplyGF(y, y);
-    y = multiplyGF(y, y);
+    y = powGF(y, 2);
 
     y = multiplyGF(y, w);
     y = multiplyGF(y, z);
@@ -174,7 +141,7 @@ Res modularProduct(BYTE *mpRes, const BYTE *wordx, const BYTE *wordy, int index)
                         rd = multiplyGF(wordx[k], rd);
                     }
                     if (!multiplyMat(&tem, (const BYTE*)&word, (const BYTE*)matInvA, dims)
-                         && !multiplyMat(&word, (const BYTE*)&rd, (const BYTE*)matInvA, dims))
+                        && !multiplyMat(&word, (const BYTE*)&rd, (const BYTE*)matInvA, dims))
                         ;
                     mpRes[i] ^= tem ^ word;
                     continue;
@@ -221,7 +188,7 @@ Res multiplyMat(BYTE *mlRes, const BYTE *matx, const BYTE *maty, const int *dims
 
 
 /* Multiplication over GF(2^8),and the irreducible polynomial is 0x011b
- */
+*/
 BYTE multiplyGF(BYTE bytex, BYTE bytey){
     int bit;
     BYTE sum = ZERO;
@@ -244,9 +211,6 @@ BYTE multiplyGF(BYTE bytex, BYTE bytey){
 
 #if SIZE_A
 
-
-/* Generate matrix A, invA, transA
-*/
 static
 Res genA(){
     Res res = RES_OK;
@@ -292,9 +256,9 @@ Res genA(){
 }
 
 /*   (invA * C * A * X * A) * y
-* = y^T * A^T * ICAX^T
-* = y^T \mply ( ICAX \mply A^T )
-*/
+ * = y^T * A^T * ICAX^T
+ * = y^T \mply ( ICAX \mply A^T )
+ */
 
 /* Generate matrices ICA and IC (after invoking 'genA()')
 */
@@ -370,9 +334,19 @@ BYTE multiplyGFNew_EA(BYTE bytex, BYTE bytey){
 
 Res setup4Fundamental(){
     Res res = RES_OK;
+    int i;
+
     res = genA();
     CHECK(res);
     res = genICA();
+
+    BYTE tem[BITS] = { 0 };
+    const int dimsCoeff[4] = { BITS, BITS, SIZE_A, SIZE_A };
+    for (i = 0; i < 3; ++i){
+        res = multiplyMat(tem, matTransA, coeff[i], dimsCoeff); CHECK(res);
+        res = multiplyMat(coeffA[i], matInvA, tem, dimsCoeff);
+    }
+
     return res;
 }
 
@@ -380,42 +354,42 @@ Res setup4Fundamental(){
 
 
 /* Multiplication over GF(2^8), inputs and outputs are masking bytes
- */
+*/
 Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs) {
     /* get matrix T
-     */
+    */
     int i, j;
     BYTE matT[MASK][MASK] = { 0 };
     for (i = 0; i < MASK; ++i){
         for (j = 0; j < MASK; ++j){
 #if SIZE_A
             if (i == 0 && j == 0){
-                BYTE tem1 = ZERO, tem2 = ZERO;
-                BYTE tem;
-                const int dimsM[4] = {1, BITS, SIZE_A, SIZE_A};
-                if (multiplyMat(&tem1, &byteXs[i], matA, dimsM)) return RES_ERROR_IN_OPERATION;
-                if (multiplyMat(&tem2, &byteYs[j], matA, dimsM)) return RES_ERROR_IN_OPERATION;
-                tem = multiplyGF(tem1, tem2);
-                if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
-                //matT[i][j] = multiplyGFNew_AA(byteXs[i], byteYs[j]);
+                //BYTE tem1 = ZERO, tem2 = ZERO;
+                //BYTE tem;
+                //const int dimsM[4] = { 1, BITS, SIZE_A, SIZE_A };
+                //if (multiplyMat(&tem1, &byteXs[i], matA, dimsM)) return RES_ERROR_IN_OPERATION;
+                //if (multiplyMat(&tem2, &byteYs[j], matA, dimsM)) return RES_ERROR_IN_OPERATION;
+                //tem = multiplyGF(tem1, tem2);
+                //if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
+                matT[i][j] = multiplyGFNew_AA(byteXs[i], byteYs[j]);
             }
             else if (i == 0){
-                BYTE tem1 = ZERO, tem2 = ZERO;
-                BYTE tem;
-                const int dimsM[4] = { 1, BITS, SIZE_A, SIZE_A };
-                if (multiplyMat(&tem1, &byteXs[i], matA, dimsM)) return RES_ERROR_IN_OPERATION;
-                tem = multiplyGF(tem1, byteYs[j]);
-                if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
-                //matT[i][j] = multiplyGFNew_EA(byteYs[j], byteXs[i]);
+                //BYTE tem1 = ZERO, tem2 = ZERO;
+                //BYTE tem;
+                //const int dimsM[4] = { 1, BITS, SIZE_A, SIZE_A };
+                //if (multiplyMat(&tem1, &byteXs[i], matA, dimsM)) return RES_ERROR_IN_OPERATION;
+                //tem = multiplyGF(tem1, byteYs[j]);
+                //if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
+                matT[i][j] = multiplyGFNew_EA(byteYs[j], byteXs[i]);
             }
             else if (j == 0){
-                BYTE tem1 = ZERO, tem2 = ZERO;
-                BYTE tem;
-                const int dimsM[4] = { 1, BITS, SIZE_A, SIZE_A };
-                if (multiplyMat(&tem2, &byteYs[j], matA, dimsM)) return RES_ERROR_IN_OPERATION;
-                tem = multiplyGF(byteXs[i], tem2);
-                if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
-                //matT[i][j] = multiplyGFNew_EA(byteXs[i], byteYs[j]);
+                //BYTE tem1 = ZERO, tem2 = ZERO;
+                //BYTE tem;
+                //const int dimsM[4] = { 1, BITS, SIZE_A, SIZE_A };
+                //if (multiplyMat(&tem2, &byteYs[j], matA, dimsM)) return RES_ERROR_IN_OPERATION;
+                //tem = multiplyGF(byteXs[i], tem2);
+                //if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
+                matT[i][j] = multiplyGFNew_EA(byteXs[i], byteYs[j]);
             }
             else{
                 matT[i][j] = multiplyGF(byteXs[i], byteYs[j]);
@@ -426,7 +400,7 @@ Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs) {
         }
     }
     /* get matrix R
-     */
+    */
     BYTE matR[MASK][MASK] = { 0 };
     for (i = 0; i < MASK; ++i){
         matR[i][i] = matT[i][i];
@@ -435,19 +409,18 @@ Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs) {
             matR[j][i] = matT[j][i] ^ matR[i][j] ^ matT[i][j];
 #if SIZE_A
             /* re-evaluate R(0,j)
-             */
+            */
             if (i == 0){
                 int dim[4] = { 1, BITS, SIZE_A, SIZE_A };
                 BYTE old = matR[0][j];
-                Res res = multiplyMat(&matR[0][j], &old, matA, dim);
-                CHECK(res);
+                multiplyMat(&matR[0][j], &old, matA, dim);
             }
 #endif
         }
     }
 
     /* get the final matrix
-     */
+    */
     for (i = 0; i < MASK; ++i){
         mlRes[i] = matR[0][i];
         for (j = 1; j < MASK; ++j){
@@ -458,28 +431,46 @@ Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs) {
     return RES_OK;
 }
 
+
+Res  powGFMasked(BYTE *powed, const BYTE *base, int expIndex){
+    // expIndex: 0->pow(2), 1->pow(4), 2->pow(16)
+    int dim[4] = { 1, BITS, BITS, BITS };
+    Res res = RES_OK;
+
+    // update the masks
+    #if SIZE_A
+        multiplyMat(powed, base, coeffA[expIndex], dim);
+    #else
+        multiplyMat(powed, base, coeff[expIndex], dim);
+    #endif
+    int i;
+    for (i = 1; i < MASK; ++i){
+        multiplyMat(powed + i, base + i, coeff[expIndex], dim);
+    }
+    return res;
+}
+
 Res invGFMasked(BYTE *inversed, const BYTE *x){
     Res res = RES_OK;
     BYTE z[MASK] = { 0 };
     BYTE y[MASK] = { 0 };
     BYTE w[MASK] = { 0 };
     BYTE tem[MASK] = { 0 };
-    //2
-    res = multiplyGFMasked(z, x, x); CHECK(res);
-    res = multiplyGFMasked(y, (const BYTE*)z, x); CHECK(res);
-    //4
-    res = multiplyGFMasked(tem, (const BYTE*)y, (const BYTE*)y); CHECK(res);
-    res = multiplyGFMasked(w, (const BYTE*)tem, (const BYTE*)tem); CHECK(res);
+    // power 2
+    powGFMasked(z, x, 0);
 
-    res = multiplyGFMasked(tem, (const BYTE*)y, (const BYTE*)w); CHECK(res);
-    //16
-    res = multiplyGFMasked(y, (const BYTE*)tem, (const BYTE*)tem); CHECK(res);
-    res = multiplyGFMasked(tem, (const BYTE*)y, (const BYTE*)y); CHECK(res);
-    res = multiplyGFMasked(y, (const BYTE*)tem, (const BYTE*)tem); CHECK(res);
-    res = multiplyGFMasked(tem, (const BYTE*)y, (const BYTE*)y); CHECK(res);
+    multiplyGFMasked(y, (const BYTE*)z, x);
 
-    res = multiplyGFMasked(y, (const BYTE*)tem, (const BYTE*)w); CHECK(res);
-    res = multiplyGFMasked(inversed, (const BYTE*)y, (const BYTE*)z);
+    // power 4
+    powGFMasked(w, (const BYTE*)y, 1);
+
+    multiplyGFMasked(tem, (const BYTE*)y, (const BYTE*)w);
+
+    // power 16
+    powGFMasked(y, (const BYTE*)tem, 2);
+    multiplyGFMasked(tem, (const BYTE*)y, (const BYTE*)w);
+    multiplyGFMasked(inversed, (const BYTE*)tem, (const BYTE*)z);
+
     return res;
 }
 
@@ -501,8 +492,7 @@ Res encode(BYTE *encoded, const BYTE *inputs){
 #if SIZE_A
     for (j = 0; j < NB*WORD_SIZE; ++j){
         sumRest[j] ^= inputs[j];
-        res = multiplyMat(encoded+j, (const BYTE*)sumRest+j, (const BYTE*)matInvA, dims);
-        CHECK(res);
+        multiplyMat(encoded + j, (const BYTE*)sumRest + j, (const BYTE*)matInvA, dims);
     }
 #else
     for (j = 0; j < NB*WORD_SIZE; ++j){
@@ -513,8 +503,6 @@ Res encode(BYTE *encoded, const BYTE *inputs){
 }
 
 
-
-
 Res decode(BYTE *decoded, const BYTE *inputs){
     Res res = RES_OK;
     int i, j;
@@ -522,12 +510,11 @@ Res decode(BYTE *decoded, const BYTE *inputs){
     if (inputs == NULL || decoded == NULL) return RES_INVALID_POINTER;
 #if SIZE_A
     for (j = 0; j < NB*WORD_SIZE; ++j){
-        res = multiplyMat(decoded+j, inputs+j, (const BYTE*)matA, dims);
-        CHECK(res);
+        multiplyMat(decoded + j, inputs + j, (const BYTE*)matA, dims);
     }
 #else
     memcpy(decoded, inputs, NB*WORD_SIZE);
-    
+
 #endif
     for (i = 1; i < MASK; ++i){
         for (j = 0; j < NB*WORD_SIZE; ++j){
@@ -536,6 +523,5 @@ Res decode(BYTE *decoded, const BYTE *inputs){
     }
     return res;
 }
-
 
 #endif /* MASK */
