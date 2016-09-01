@@ -89,7 +89,7 @@ BYTE  powGF(BYTE base, int expIndex){
     int dim[4] = { 1, BITS, BITS, BITS };
     Res res = RES_OK;
     BYTE tem = ZERO;
-    res = multiplyMat(&tem, &base, coeff[expIndex], dim);
+    multiplyMat(&tem, &base, coeff[expIndex], dim);
     return tem;
 }
 
@@ -236,22 +236,19 @@ Res genA(){
         matE[i] ^= rowToAdd;
 
         /* Tanspose(P) */
-        res = transpose(matP, (const BYTE *)matE, dimsE);
-        CHECK(res);
+        transpose(matP, (const BYTE *)matE, dimsE);
         /*  A = P x A   ==>  A^T = A^T x P^T  */
         memcpy(tem, (const BYTE *)matTransA, SIZE_A);
-        res = multiplyMat(matTransA, (const BYTE *)tem, (const BYTE *)matE, dimsE);
-        CHECK(res);
+        multiplyMat(matTransA, (const BYTE *)tem, (const BYTE *)matE, dimsE);
         /*  A^{-1} = A^{-1} x P     */
         memcpy(tem, (const BYTE *)matInvA, SIZE_A);
-        res = multiplyMat(matInvA, (const BYTE *)tem, (const BYTE *)matP, dimsE);
-        CHECK(res);
+        multiplyMat(matInvA, (const BYTE *)tem, (const BYTE *)matP, dimsE);
 
         /* Refresh matE to Unit Matrix */
         matE[i] ^= rowToAdd;
     }
 
-    res = transpose(matA, (const BYTE *)matTransA, dimsE);
+    transpose(matA, (const BYTE *)matTransA, dimsE);
     return res;
 }
 
@@ -264,7 +261,6 @@ Res genA(){
 */
 static
 Res genICA(){
-    Res res = RES_OK;
     // get the transposition of matCs
     BYTE matC[SIZE_A][SIZE_A] = { MAT_C(1), MAT_C(2), MAT_C(3), MAT_C(4), MAT_C(5), MAT_C(6), MAT_C(7), MAT_C(8) };
     BYTE matCT[SIZE_A][SIZE_A] = { MAT_CT(1), MAT_CT(2), MAT_CT(3), MAT_CT(4), MAT_CT(5), MAT_CT(6), MAT_CT(7), MAT_CT(8) };
@@ -272,15 +268,12 @@ Res genICA(){
     const int dims[4] = { SIZE_A, SIZE_A, SIZE_A, SIZE_A };
     // generate ICA and IC iteratively
     for (i = 0; i < SIZE_A; ++i){
-        res = multiplyMat(matIC[i], (const BYTE*)matInvA, (const BYTE*)matCT[i], dims);
-        CHECK(res);
+        multiplyMat(matIC[i], (const BYTE*)matInvA, (const BYTE*)matCT[i], dims);
         BYTE tem[SIZE_A] = { 0 };
-        res = multiplyMat(tem, (const BYTE*)matTransA, (const BYTE*)matC[i], dims);
-        CHECK(res);
-        res = multiplyMat(matICA[i], (const BYTE*)matInvA, (const BYTE*)tem, dims);
-        CHECK(res);
+        multiplyMat(tem, (const BYTE*)matTransA, (const BYTE*)matC[i], dims);
+        multiplyMat(matICA[i], (const BYTE*)matInvA, (const BYTE*)tem, dims);
     }
-    return res;
+    return RES_OK;
 }
 
 
@@ -333,21 +326,19 @@ BYTE multiplyGFNew_EA(BYTE bytex, BYTE bytey){
 
 
 Res setup4Fundamental(){
-    Res res = RES_OK;
     int i;
 
-    res = genA();
-    CHECK(res);
-    res = genICA();
+    genA();
+    genICA();
 
     BYTE tem[BITS] = { 0 };
     const int dimsCoeff[4] = { BITS, BITS, SIZE_A, SIZE_A };
     for (i = 0; i < 3; ++i){
-        res = multiplyMat(tem, matTransA, coeff[i], dimsCoeff); CHECK(res);
-        res = multiplyMat(coeffA[i], matInvA, tem, dimsCoeff);
+        multiplyMat(tem, matTransA, coeff[i], dimsCoeff);
+        multiplyMat(coeffA[i], matInvA, tem, dimsCoeff);
     }
 
-    return res;
+    return RES_OK;
 }
 
 #endif /* SIZE_A */
@@ -435,7 +426,6 @@ Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs) {
 Res  powGFMasked(BYTE *powed, const BYTE *base, int expIndex){
     // expIndex: 0->pow(2), 1->pow(4), 2->pow(16)
     int dim[4] = { 1, BITS, BITS, BITS };
-    Res res = RES_OK;
 
     // update the masks
     #if SIZE_A
@@ -447,11 +437,10 @@ Res  powGFMasked(BYTE *powed, const BYTE *base, int expIndex){
     for (i = 1; i < MASK; ++i){
         multiplyMat(powed + i, base + i, coeff[expIndex], dim);
     }
-    return res;
+    return RES_OK;
 }
 
 Res invGFMasked(BYTE *inversed, const BYTE *x){
-    Res res = RES_OK;
     BYTE z[MASK] = { 0 };
     BYTE y[MASK] = { 0 };
     BYTE w[MASK] = { 0 };
@@ -471,7 +460,7 @@ Res invGFMasked(BYTE *inversed, const BYTE *x){
     multiplyGFMasked(tem, (const BYTE*)y, (const BYTE*)w);
     multiplyGFMasked(inversed, (const BYTE*)tem, (const BYTE*)z);
 
-    return res;
+    return RES_OK;
 }
 
 

@@ -18,15 +18,14 @@ Res setup4AES(){
     const BYTE affineMat[BITS] = AFFINE_MATRIX;
     const int dimsAffine[4] = { BITS, BITS, BITS, BITS };
     const int dimsC[4] = { 1, BITS, SIZE_A, SIZE_A };
-    Res res = setup4Fundamental();
-    CHECK(res);
+
+    setup4Fundamental();
 
     BYTE tem[BITS] = { 0 };
-    res = multiplyMat(tem, matTransA, affineMat, dimsAffine);
-    CHECK(res);
-    res = multiplyMat(affineMatA, matInvA, tem, dimsAffine);
+    multiplyMat(tem, matTransA, affineMat, dimsAffine);
+    multiplyMat(affineMatA, matInvA, tem, dimsAffine);
 
-    return res;
+    return RES_OK;
 }
 #endif
 
@@ -258,33 +257,33 @@ Res encrypt(BYTE *cipherText, const BYTE *plainText, const BYTE *cipherKey){
 
 #if MASK
     BYTE states[MASK][NB*WORD_SIZE] = { 0 };
-    res = encode((BYTE*)states, (const BYTE*)state); CHECK(res);
+    encode((BYTE*)states, (const BYTE*)state);
     BYTE* ptr = (BYTE *)states;
 #else
     BYTE* const ptr = state;
 #endif
 
     addRoundKey(ptr, roundKey);
-        //res = decode(state, (const BYTE*)states); CHECK(res);
+            //decode(state, (const BYTE*)states);
     int roundIndex;
     for (roundIndex = 1; roundIndex < NR; ++roundIndex){
         subBytes(ptr);
-            //res = decode(state, (const BYTE*)states); CHECK(res);
+            //decode(state, (const BYTE*)states);
         shiftRows(ptr);
-            //res = decode(state, (const BYTE*)states); CHECK(res);
+            //decode(state, (const BYTE*)states);
         mixColumns(ptr);
-            //res = decode(state, (const BYTE*)states); CHECK(res);
+            //decode(state, (const BYTE*)states);
         addRoundKey(ptr, roundKey + roundIndex * WORD_SIZE * NB);
-            //res = decode(state, (const BYTE*)states); CHECK(res);
+            //decode(state, (const BYTE*)states);
     }
     subBytes(ptr);
     shiftRows(ptr);
     addRoundKey(ptr, roundKey + NR * WORD_SIZE * NB);
 
 #if MASK
-    res = decode(state, (const BYTE*)states); CHECK(res);
+    decode(state, (const BYTE*)states);
 #endif
-    res = transpose(cipherText, state);
+    transpose(cipherText, state);
     return res;
 }
 
