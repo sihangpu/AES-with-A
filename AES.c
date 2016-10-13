@@ -12,9 +12,9 @@ BYTE  matA[SIZE_A], matInvA[SIZE_A], matTransA[SIZE_A];
 
 BYTE affineMatA[BITS] = { 0 };
 
+Res setup4AES(){
 /* Setup for AES
  */
-Res setup4AES(){
     const BYTE affineMat[BITS] = AFFINE_MATRIX;
     const int dimsAffine[4] = { BITS, BITS, BITS, BITS };
     const int dimsC[4] = { 1, BITS, SIZE_A, SIZE_A };
@@ -29,11 +29,11 @@ Res setup4AES(){
 }
 #endif
 
-/* Affine Transformation over GF(2)
-*/
 //_inline
 static
 BYTE affineTransform(BYTE b, int index){
+/* Affine Transformation over GF(2)
+ */
     const int dimsAffine[4] = { 1, BITS, BITS, BITS };
     const BYTE affineMat[BITS] = AFFINE_MATRIX;
     BYTE ret = ZERO;
@@ -151,11 +151,11 @@ void addRoundKey(BYTE *toAdd, const BYTE* keyScheduled){
     }
 }
 
-/* From input(state) bytes to state(output) words, changing the order
-*/
 //_inline
 static
 Res transpose(BYTE *output, const BYTE *input){
+/* From input(state) bytes to state(output) words, changing the order
+ */
     int i, j;
     //NB*WORD_SIZE
     for (i = 0; i < WORD_SIZE; ++i){
@@ -167,11 +167,11 @@ Res transpose(BYTE *output, const BYTE *input){
 }
 
 
-/* Apply 'subbyte' to a state word
- */
 //_inline
 static
 void subWord(BYTE *word){
+/* Apply 'subbyte' to a state word
+ */
     int i;
     for (i = 0; i < WORD_SIZE; ++i){
         BYTE inversed = invGF(word[i]);
@@ -188,11 +188,11 @@ void rotWord(BYTE *word){
     word[WORD_SIZE - 1] = tem;
 }
 
-/* Round constant
- */
 //_inline
 static
 void rconst(BYTE *word, int i){
+/* Round constants
+ */
     BYTE rCon;
     switch (i){
     case 1: rCon = RCONST(1); break;
@@ -242,9 +242,9 @@ Res keyExpansion(BYTE *words, const BYTE *key){
 
 
 
-/* Encrypt
- */
 Res encrypt(BYTE *cipherText, const BYTE *plainText, const BYTE *cipherKey){
+/* Encryption
+ */
     Res res = RES_OK;
     if (MASK == 1 && SIZE_A == 0) return RES_INVALID_SETTINGS;
     if (MASK == 0 && SIZE_A != 0) return RES_INVALID_SETTINGS;
@@ -287,9 +287,9 @@ Res encrypt(BYTE *cipherText, const BYTE *plainText, const BYTE *cipherKey){
     return res;
 }
 
-/* Encrypt_fixed: for testing
- */
 Res encrypt_fixed(){
+/* Encrypt_fixed: for testing and invoking
+ */
     const BYTE plain[NB*WORD_SIZE] = { 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, \
         0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34 };
     const BYTE key[NK*WORD_SIZE] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, \

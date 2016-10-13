@@ -16,8 +16,9 @@
 #if SIZE_A
 extern
 BYTE  matA[SIZE_A], matInvA[SIZE_A], matTransA[SIZE_A];
+
 extern
-BYTE  matICA[SIZE_A][SIZE_A], matIC[SIZE_A][SIZE_A];
+BYTE matHat[SIZE_A * SIZE_A * SIZE_A / BITS], matGrave[SIZE_A * SIZE_A * SIZE_A / BITS], matAcute[SIZE_A * SIZE_A * SIZE_A / BITS], matEE[SIZE_A * SIZE_A];
 
 #endif
 
@@ -44,6 +45,7 @@ BYTE keyExpanded[NB*(NR + 1)*WORD_SIZE] = { 0 };
 extern const BYTE lookupTable[256];
 extern const BYTE mod8[64];
 extern Res transpose(BYTE *transRes, const BYTE *matOrig, const int *dims);
+extern Res tensorProductOfMat(BYTE *tpres, const BYTE *matX, const BYTE *matY);
 extern Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs);
 extern BYTE  powGF(BYTE base, int expIndex);
 
@@ -86,10 +88,10 @@ void lookatMatA(){
     const int dimsM[4] = { SIZE_A, SIZE_A, SIZE_A, SIZE_A };
     multiplyMat(tem, matInvA, matTransA, dimsM);
     outputMat(tem, SIZE_A, "MatA * MatInvA");
-    /* ICA, IC
-     */
-    outputMat((const BYTE*)matICA, SIZE_A * SIZE_A, "Matrix ICA");
-    outputMat((const BYTE*)matIC, SIZE_A*SIZE_A, "Matrix IC");
+    outputMat(matAcute, SIZE_A*SIZE_A, "Acute");
+    outputMat(matGrave, SIZE_A*SIZE_A, "Grave");
+    outputMat(matHat, SIZE_A*SIZE_A, "Hat");
+    outputMat(matEE, SIZE_A*SIZE_A, "EE");
 }
 
 
@@ -99,6 +101,11 @@ void multiplyGFTest(){
     const int bytex = 0;
     const int bytey = 0;
 
+
+    BYTE tensorRes[64*8] = { 0 };
+    tensorProductOfMat(tensorRes, matA, matA);
+    outputMat(tensorRes, 64*8, "TensorProductRes");
+
     /* original multiplyGF
     */
     BYTE mgf = multiplyGF(plain[bytex], plain[bytey]);
@@ -106,22 +113,8 @@ void multiplyGFTest(){
 
     BYTE mgf2 = powGF(plain[bytex], 0);
     outputMat(&mgf2, 1, "Original Multiply in GF(square)");
-    /* original multiplyGF using matrices C
-     */
+
     const int dimsT[4] = { 1, BITS, SIZE_A, SIZE_A };
-    BYTE matC[SIZE_A][SIZE_A] = { MAT_C(1), MAT_C(2), MAT_C(3), MAT_C(4), MAT_C(5), MAT_C(6), MAT_C(7), MAT_C(8) };
-    BYTE CX[SIZE_A] = { 0 };
-    // get CX
-    int row, col;
-    for (row = 0; row < BITS; ++row){
-        for (col = 0; col < BITS; ++col){
-            BYTE tem = lookupTable[matC[col][row] & plain[bytex]] >> mod8[col];
-            if (tem)
-                CX[row] ^= tem;
-        }
-    }
-    multiplyMat(tem, &plain[bytey], (const BYTE*)CX, dimsT);
-    outputMat(tem, 1, "Original But Using Matrix C");
 
     /* masking multiplyGF
      */
@@ -149,7 +142,8 @@ void multiplyGFTest(){
     BYTE mgfM[MASK] = { 0 };
     multiplyGFMasked(mgfM, inp, inp2);
     outputMat(mgfM, MASK, "Masking Multiply in GF");
-    BYTE tem2 = 0x00;
+
+    BYTE tem2 = 0xFF;
 
 #if !SIZE_A
     tem2 = mgfM[0];

@@ -13,14 +13,22 @@
 #include <stdlib.h>
 
 /*================
+ * USAGE:
+ * - unmasked version :                     `MASK=0` and `SIZE_A=0`;
+ * - masked(i-th order) version with A :    `MASK=i` and `SIZE_A=8`;
+ * - masked(i-th order) version without A : `MASK=i` and `SIZE_A=0`;
+ *--------------------------------------------------------------------------------
+ *--------------------------------------------------------------------------------
  * ATTENTION:
- * - `SIZE_A` MAY NOT be `0` when `MASK` is `1`.
- * - `SIZE_A` MUST be `0` as well when `MASK` is `0`.
- * - `SIZE_A` should be either `0` or `8`,  other values to be implemented...
+ * - `SIZE_A` cannot be `0` when `MASK` is `1`.
+ * - `SIZE_A` must be `0` when `MASK` is `0`.
+ * - `SIZE_A` should be either `0` or `8`.
  *=================*/
-#define MASK         2
-#define SIZE_A       8
+#define MASK         4
+#define SIZE_A       0
 
+/*------------------- SETTINGS OF AES  -------------------------------------------
+ */
 #define BLOCK_LENGTH 128                //128, 192, 256
 #define WORD_SIZE    4
 #define NB           4
@@ -29,14 +37,34 @@
 
 
 
-/* ---------------- MAY NOT CHANGE THE FOLLOWING SETTINGS -----------------
+/* ---------------- MAY NOT CHANGE THE FOLLOWING SETTINGS -----------------------
  */
 #define IRP          0x1B               //irreducible polynomial, 0x011b
 
 #define BITS         8
+#define RANGE        256
 #define ZERO         0x00
 #define UNIT_BYTE    0x80
 #define UNIT_MAT     {  0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01  }
+
+    /* MAT_EE
+    'B162C48810204080'
+    '58B162C488102040'
+    '2C58B162C4881020'
+    '962C58B162C48810'
+    'FAF4E8D0A1428408'
+    '4C983060C0810204'
+    'A64C983060C08102'
+    '62C4881020408001'
+    */
+#define MAT_EE       {  0xB1, 0x62, 0xC4, 0x88, 0x10, 0x20, 0x40, 0x80,\
+                        0x58, 0xB1, 0x62, 0xC4, 0x88, 0x10, 0x20, 0x40,\
+                        0x2C, 0x58, 0xB1, 0x62, 0xC4, 0x88, 0x10, 0x20,\
+                        0x96, 0x2C, 0x58, 0xB1, 0x62, 0xC4, 0x88, 0x10,\
+                        0xFA, 0xF4, 0xE8, 0xD0, 0xA1, 0x42, 0x84, 0x08,\
+                        0x4C, 0x98, 0x30, 0x60, 0xC0, 0x81, 0x02, 0x04,\
+                        0xA6, 0x4C, 0x98, 0x30, 0x60, 0xC0, 0x81, 0x02,\
+                        0x62, 0xC4, 0x88, 0x10, 0x20, 0x40, 0x80, 0x01 }
 
 #define MAT_POW(cond) MAT_POW_ ## cond
 #define MAT_POW_2       0xC0, 0x28, 0x60, 0x94, 0xF0, 0x22, 0xD0, 0x51

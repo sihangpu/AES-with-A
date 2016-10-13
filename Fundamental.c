@@ -8,12 +8,24 @@
 #include "Fundamental.h"
 
 #if SIZE_A
-BYTE  matA[SIZE_A] = { 0 }, matInvA[SIZE_A] = { 0 }, matTransA[SIZE_A] = { 0 };
-BYTE  matICA[SIZE_A][SIZE_A] = { 0 }, matIC[SIZE_A][SIZE_A] = { 0 };
+BYTE matA[SIZE_A] = { 0 }, matInvA[SIZE_A] = { 0 }, matTransA[SIZE_A] = { 0 };
+
+//static
+BYTE matHat[SIZE_A * SIZE_A * SIZE_A / BITS] = { 0 }, matGrave[SIZE_A * SIZE_A * SIZE_A / BITS] = { 0 }, matAcute[SIZE_A * SIZE_A * SIZE_A / BITS] = { 0 };
+
+static
+BYTE multiBigA[SIZE_A * 3][RANGE] = { 0 };
+
+static
+BYTE multiA[RANGE] = { 0 };
+
+// n * n^2
+//static
+BYTE matEE[SIZE_A * SIZE_A] = MAT_EE;
 #endif
 
 const
-BYTE lookupTable[256] = POP_CONT;
+BYTE lookupTable[RANGE] = POP_CONT;
 const
 BYTE mod8[] = MOD;
 const
@@ -21,9 +33,12 @@ BYTE div8[] = DIV;
 
 BYTE coeffA[3][BITS] = { 0 }, coeff[3][BITS] = { MAT_POW(2), MAT_POW(4), MAT_POW(16) };
 
-/* Shift bits form j -> i */
+
+
 static
 BYTE shiftBit(BYTE orig, int i, int j)
+/* Shift bits form j -> i
+ */
 {
     BYTE tem;
     tem = (UNIT_BYTE >> j) & orig;
@@ -34,21 +49,69 @@ BYTE shiftBit(BYTE orig, int i, int j)
     return tem;
 }
 
-/* Calculate the # of bytes in one row */
+//static
 int bytesOfRow(int col)
+/* Calculate the # of bytes in one row
+ */
 {
     int bytes;
-    // bytes of each row :: if dim_col < LENGTH, allocate a byte as well
+    /* bytes of each row :: if dim_col < LENGTH, allocate a byte as well
+     */
     if (col < BITS) return 1;
     bytes = div8[col];
     bytes = mod8[col] ? bytes + 1 : bytes;
     return bytes;
 }
 
-/* Transposition */
+
+//_inline
+//static
+Res tensorProduct(BYTE *tpres, BYTE bytex, BYTE bytey)
+/* Tensor Product(kron) of two bytes
+ * Return a 1 x 64 vector of bits, i.e., a 8-byte-array
+ */
+{
+    int j;
+    if (tpres == NULL) return RES_INVALID_POINTER;
+    BYTE unit = UNIT_BYTE;
+    for (j = 0; j < 8; ++j){
+        tpres[j] = (bytex & unit) ? bytey : 0x00;
+        unit >>= 1;
+    }
+    return RES_OK;
+}
+
+
+//static
+Res tensorProductOfMat(BYTE *tpres, const BYTE *matX, const BYTE *matY)
+/* Tensor Product of two matrix,
+ * Return a (n^2, n^2) matrix, which is the transposed matrix of the result
+ */
+{
+    int i,j,k;
+    if (tpres == NULL) return RES_INVALID_POINTER;
+    BYTE unit = UNIT_BYTE;
+
+    int dim[2] = {8, 8};
+
+    for (i = 0; i< 8; ++i){
+        for (j = 0; j < 8; ++j){
+            BYTE sign = matX[j] & unit;
+            for (k = 0; k < 8; ++k){
+                tpres[(j*8+k) * 8 + i] = sign ? matY[k] : 0x00;
+            }
+        }
+        unit >>= 1;
+    }
+    return RES_OK;
+}
+
+
 //_inline
 //static
 Res transpose(BYTE *transRes, const BYTE *matOrig, const int *dims)
+/* Transposition
+ */
 {
     int colOrig, rowOrig;
     int cntBytesOrig, cntBytesRet;
@@ -94,9 +157,9 @@ BYTE  powGF(BYTE base, int expIndex){
 }
 
 
-/* Multiplicative inverse of a(x) in GF(2^8)
-*/
 BYTE invGF(BYTE x){
+/* Multiplicative inverse of a(x) in GF(2^8)
+ */
     if (x == ZERO) return ZERO;
     BYTE z = powGF(x, 0);
 
@@ -113,10 +176,10 @@ BYTE invGF(BYTE x){
     return y;
 }
 
+Res modularProduct(BYTE *mpRes, const BYTE *wordx, const BYTE *wordy, int index){
 /* Modular product of a(x) and b(x), where a(x) and b(x) both are four-term polynomials,
  * with coefficients that are finite field elements.
  */
-Res modularProduct(BYTE *mpRes, const BYTE *wordx, const BYTE *wordy, int index){
     int i;
     if (mpRes == NULL) return RES_INVALID_POINTER;
     for (i = 0; i < WORD_SIZE; ++i){
@@ -157,11 +220,11 @@ Res modularProduct(BYTE *mpRes, const BYTE *wordx, const BYTE *wordy, int index)
     return RES_OK;
 }
 
+Res multiplyMat(BYTE *mlRes, const BYTE *matx, const BYTE *maty, const int *dims){
 /* Matrix multiply : mulitplyMat(A, B) = A * B^T
  *  - *dims: points to a array containing the dimension of matrices rx,cx,ry and cy, respectively.
  *  -
  */
-Res multiplyMat(BYTE *mlRes, const BYTE *matx, const BYTE *maty, const int *dims){
     int row, col;
     if (mlRes == NULL) return RES_INVALID_POINTER;
     if (dims[1] != dims[3]) return RES_INVALID_DIMENSION; //cx != cy?
@@ -187,9 +250,9 @@ Res multiplyMat(BYTE *mlRes, const BYTE *matx, const BYTE *maty, const int *dims
 }
 
 
+BYTE multiplyGF(BYTE bytex, BYTE bytey){
 /* Multiplication over GF(2^8),and the irreducible polynomial is 0x011b
 */
-BYTE multiplyGF(BYTE bytex, BYTE bytey){
     int bit;
     BYTE sum = ZERO;
     BYTE toAdd = bytex;
@@ -212,13 +275,20 @@ BYTE multiplyGF(BYTE bytex, BYTE bytey){
 #if SIZE_A
 
 static
-Res genA(){
+Res genAs(){
     Res res = RES_OK;
     int i;
     const int dimsE[4] = { SIZE_A, SIZE_A, SIZE_A, SIZE_A };
+    const int dimsB[4] = { SIZE_A, SIZE_A, SIZE_A * SIZE_A, SIZE_A };
+    const int dimsT[4] = { SIZE_A * SIZE_A, SIZE_A * SIZE_A, SIZE_A, SIZE_A * SIZE_A };
     BYTE matP[SIZE_A] = { 0 };
     BYTE matE[SIZE_A] = UNIT_MAT;
     BYTE tem[SIZE_A] = { 0 };
+
+    // n^2 * n
+    BYTE matRight[SIZE_A * SIZE_A] = { 0 };
+    // n^2 * n^2
+    BYTE matTensor[SIZE_A * SIZE_A * SIZE_A] = { 0 };
 
     /*  get matrix A and inv(A) temporarily */
     memcpy((BYTE *)matTransA, (const BYTE *)matE, SIZE_A);
@@ -249,87 +319,86 @@ Res genA(){
     }
 
     transpose(matA, (const BYTE *)matTransA, dimsE);
+
+    /* Generate `hatA`, `graveA` and `acuteA`, which are SIZE_A * SIZE_A^2
+     */
+    // hatA = invA x ( EE x tp(A,A) )
+    //      = invA .x ( EE x tp(A,A) )^T
+    //      = invA .x ( tp(A,A)^T .x EE)
+    //      = invA .x ( tp(A^T,A^T) .x EE)
+    BYTE matUnit[SIZE_A] = UNIT_MAT;
+
+    tensorProductOfMat(matTensor, (const BYTE*)matTransA, (const BYTE*)matTransA);
+    multiplyMat(matRight, (const BYTE *)matTensor, (const BYTE *)matEE, dimsT);
+    multiplyMat(matHat, (const BYTE *)matInvA, (const BYTE *)matRight, dimsB);
+
+    tensorProductOfMat(matTensor, (const BYTE*)matTransA, (const BYTE*)matUnit);
+    multiplyMat(matRight, (const BYTE *)matTensor, (const BYTE *)matEE, dimsT);
+    multiplyMat(matGrave, (const BYTE *)matInvA, (const BYTE *)matRight, dimsB);
+
+    tensorProductOfMat(matTensor, (const BYTE*)matUnit, (const BYTE*)matTransA);
+    multiplyMat(matRight, (const BYTE *)matTensor, (const BYTE *)matEE, dimsT);
+    multiplyMat(matAcute, (const BYTE *)matInvA, (const BYTE *)matRight, dimsB);
+
     return res;
 }
 
-/*   (invA * C * A * X * A) * y
- * = y^T * A^T * ICAX^T
- * = y^T \mply ( ICAX \mply A^T )
- */
 
-/* Generate matrices ICA and IC (after invoking 'genA()')
-*/
-static
-Res genICA(){
-    // get the transposition of matCs
-    BYTE matC[SIZE_A][SIZE_A] = { MAT_C(1), MAT_C(2), MAT_C(3), MAT_C(4), MAT_C(5), MAT_C(6), MAT_C(7), MAT_C(8) };
-    BYTE matCT[SIZE_A][SIZE_A] = { MAT_CT(1), MAT_CT(2), MAT_CT(3), MAT_CT(4), MAT_CT(5), MAT_CT(6), MAT_CT(7), MAT_CT(8) };
-    int i;
-    const int dims[4] = { SIZE_A, SIZE_A, SIZE_A, SIZE_A };
-    // generate ICA and IC iteratively
-    for (i = 0; i < SIZE_A; ++i){
-        multiplyMat(matIC[i], (const BYTE*)matInvA, (const BYTE*)matCT[i], dims);
-        BYTE tem[SIZE_A] = { 0 };
-        multiplyMat(tem, (const BYTE*)matTransA, (const BYTE*)matC[i], dims);
-        multiplyMat(matICA[i], (const BYTE*)matInvA, (const BYTE*)tem, dims);
+
+
+
+Res setup4MultiTable(
+    )
+{
+
+    int tabIndex, itr;
+    int matIndex;
+    BYTE val;
+    BYTE * const mat[3] = { matHat, matGrave, matAcute };
+    const int tabs = SIZE_A;
+
+    /* look up table for matHat, matGrave, matAcute multiplication
+     */
+    for (matIndex = 0; matIndex < 3; ++matIndex){
+        for (tabIndex = 0; tabIndex < tabs; ++tabIndex){
+            int currTab = matIndex * tabs + tabIndex;
+            for (val = 0x00, itr = 0; itr < RANGE; ++val, ++itr){
+                /* Multiplying */
+                int row;
+                BYTE *ptrMat = mat[matIndex] + tabIndex;
+                for (row = 0; row < SIZE_A; ++row, ptrMat += tabs)
+                {
+                    BYTE temp;
+                    temp = lookupTable[val & (*ptrMat)] >> row;
+                    if (temp)
+                        multiBigA[currTab][val] ^= temp;
+                }
+            }
+        }
+    }
+
+    /* look up table for matA multiplication
+     */
+    for (val = 0x00, itr = 0; itr < RANGE; ++val, ++itr){
+        int row;
+        BYTE *ptrMat = matA;
+        for (row = 0; row < SIZE_A; ++row, ++ptrMat)
+        {
+            BYTE temp;
+            temp = lookupTable[val & (*ptrMat)] >> row;
+            if (temp)
+                multiA[val] ^= temp;
+        }
     }
     return RES_OK;
 }
 
 
-static
-BYTE multiplyGFNew_AA(BYTE bytex, BYTE bytey){
-    BYTE ICAX[BITS] = { 0 };
-    BYTE tem[BITS] = { 0 };
-    BYTE ret = ZERO;
-    const int dims[4] = { BITS, BITS, SIZE_A, SIZE_A };
-    const int dimsY[4] = { 1, BITS, BITS, BITS };
-    int row, col;
-    // get ICAX
-    for (row = 0; row < BITS; ++row){
-        for (col = 0; col < BITS; ++col){
-            BYTE tem = lookupTable[matICA[col][row] & bytex] >> mod8[col];
-            if (tem)
-                ICAX[row] ^= tem;
-        }
-    }
-    if (multiplyMat(tem, (const BYTE*)ICAX, (const BYTE*)matTransA, dims))
-        return ZERO;
-    if (multiplyMat(&ret, &bytey, (const BYTE*)tem, dimsY))
-        return ZERO;
-    return ret;
-}
-
-static
-BYTE multiplyGFNew_EA(BYTE bytex, BYTE bytey){
-    BYTE ICX[BITS] = { 0 };
-    BYTE tem[BITS] = { 0 };
-    BYTE ret = ZERO;
-    const int dims[4] = { BITS, BITS, SIZE_A, SIZE_A };
-    const int dimsY[4] = { 1, BITS, BITS, BITS };
-    int row, col;
-    // get ICX
-    for (row = 0; row < BITS; ++row){
-        for (col = 0; col < BITS; ++col){
-            BYTE tem = lookupTable[matIC[col][row] & bytex] >> mod8[col];
-            if (tem)
-                ICX[row] ^= tem;
-        }
-    }
-    if (multiplyMat(tem, (const BYTE*)ICX, (const BYTE*)matTransA, dims))
-        return ZERO;
-    if (multiplyMat(&ret, &bytey, (const BYTE*)tem, dimsY))
-        return ZERO;
-    return ret;
-
-}
-
 
 Res setup4Fundamental(){
     int i;
 
-    genA();
-    genICA();
+    genAs();
 
     BYTE tem[BITS] = { 0 };
     const int dimsCoeff[4] = { BITS, BITS, SIZE_A, SIZE_A };
@@ -338,49 +407,51 @@ Res setup4Fundamental(){
         multiplyMat(coeffA[i], matInvA, tem, dimsCoeff);
     }
 
+    setup4MultiTable();
     return RES_OK;
 }
 
+
+BYTE multiplyTable(
+    const BYTE *vectX,
+    BYTE index // the index of hat(0), grave(1), or acute(2)
+    )
+{
+    int i;
+    BYTE ret = 0x00;
+    const int tabs = SIZE_A;
+    BYTE realIndex = index * tabs;
+
+    for (i = 0; i < tabs; ++i){
+        ret ^= multiBigA[realIndex + i][vectX[i]];
+    }
+    return ret;
+}
 #endif /* SIZE_A */
 
 
+Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs) {
 /* Multiplication over GF(2^8), inputs and outputs are masking bytes
 */
-Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs) {
     /* get matrix T
     */
     int i, j;
     BYTE matT[MASK][MASK] = { 0 };
+    BYTE matTensorTemp[BITS] = { 0 };
     for (i = 0; i < MASK; ++i){
         for (j = 0; j < MASK; ++j){
 #if SIZE_A
             if (i == 0 && j == 0){
-                //BYTE tem1 = ZERO, tem2 = ZERO;
-                //BYTE tem;
-                //const int dimsM[4] = { 1, BITS, SIZE_A, SIZE_A };
-                //if (multiplyMat(&tem1, &byteXs[i], matA, dimsM)) return RES_ERROR_IN_OPERATION;
-                //if (multiplyMat(&tem2, &byteYs[j], matA, dimsM)) return RES_ERROR_IN_OPERATION;
-                //tem = multiplyGF(tem1, tem2);
-                //if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
-                matT[i][j] = multiplyGFNew_AA(byteXs[i], byteYs[j]);
+                tensorProduct(matTensorTemp, byteXs[i], byteYs[j]);
+                matT[i][j] = multiplyTable((const BYTE *)matTensorTemp, 0);
             }
             else if (i == 0){
-                //BYTE tem1 = ZERO, tem2 = ZERO;
-                //BYTE tem;
-                //const int dimsM[4] = { 1, BITS, SIZE_A, SIZE_A };
-                //if (multiplyMat(&tem1, &byteXs[i], matA, dimsM)) return RES_ERROR_IN_OPERATION;
-                //tem = multiplyGF(tem1, byteYs[j]);
-                //if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
-                matT[i][j] = multiplyGFNew_EA(byteYs[j], byteXs[i]);
+                tensorProduct(matTensorTemp, byteXs[i], byteYs[j]);
+                matT[i][j] = multiplyTable((const BYTE *)matTensorTemp, 1);
             }
             else if (j == 0){
-                //BYTE tem1 = ZERO, tem2 = ZERO;
-                //BYTE tem;
-                //const int dimsM[4] = { 1, BITS, SIZE_A, SIZE_A };
-                //if (multiplyMat(&tem2, &byteYs[j], matA, dimsM)) return RES_ERROR_IN_OPERATION;
-                //tem = multiplyGF(byteXs[i], tem2);
-                //if (multiplyMat(&matT[i][j], &tem, matInvA, dimsM)) return RES_ERROR_IN_OPERATION;
-                matT[i][j] = multiplyGFNew_EA(byteXs[i], byteYs[j]);
+                tensorProduct(matTensorTemp, byteXs[i], byteYs[j]);
+                matT[i][j] = multiplyTable((const BYTE *)matTensorTemp, 2);
             }
             else{
                 matT[i][j] = multiplyGF(byteXs[i], byteYs[j]);
@@ -402,9 +473,10 @@ Res multiplyGFMasked(BYTE *mlRes, const BYTE *byteXs, const BYTE *byteYs) {
             /* re-evaluate R(0,j)
             */
             if (i == 0){
-                int dim[4] = { 1, BITS, SIZE_A, SIZE_A };
-                BYTE old = matR[0][j];
-                multiplyMat(&matR[0][j], &old, matA, dim);
+                matR[0][j] = multiA[matR[0][j]];
+                //int dim[4] = { 1, BITS, SIZE_A, SIZE_A };
+                //BYTE old = matR[0][j];
+                //multiplyMat(&matR[0][j], &old, matA, dim);
             }
 #endif
         }
@@ -428,11 +500,11 @@ Res  powGFMasked(BYTE *powed, const BYTE *base, int expIndex){
     int dim[4] = { 1, BITS, BITS, BITS };
 
     // update the masks
-    #if SIZE_A
-        multiplyMat(powed, base, coeffA[expIndex], dim);
-    #else
-        multiplyMat(powed, base, coeff[expIndex], dim);
-    #endif
+#if SIZE_A
+    multiplyMat(powed, base, coeffA[expIndex], dim);
+#else
+    multiplyMat(powed, base, coeff[expIndex], dim);
+#endif
     int i;
     for (i = 1; i < MASK; ++i){
         multiplyMat(powed + i, base + i, coeff[expIndex], dim);
