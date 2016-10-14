@@ -24,8 +24,8 @@
  * - `SIZE_A` must be `0` when `MASK` is `0`.
  * - `SIZE_A` should be either `0` or `8`.
  *=================*/
-#define MASK         4
-#define SIZE_A       0
+#define MASK         3
+#define SIZE_A       8
 
 /*------------------- SETTINGS OF AES  -------------------------------------------
  */

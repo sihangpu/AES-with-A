@@ -10,8 +10,8 @@
 #if SIZE_A
 BYTE matA[SIZE_A] = { 0 }, matInvA[SIZE_A] = { 0 }, matTransA[SIZE_A] = { 0 };
 
-//static
-BYTE matHat[SIZE_A * SIZE_A * SIZE_A / BITS] = { 0 }, matGrave[SIZE_A * SIZE_A * SIZE_A / BITS] = { 0 }, matAcute[SIZE_A * SIZE_A * SIZE_A / BITS] = { 0 };
+static
+BYTE *matHat, *matGrave, *matAcute;
 
 static
 BYTE multiBigA[SIZE_A * 3][RANGE] = { 0 };
@@ -19,9 +19,6 @@ BYTE multiBigA[SIZE_A * 3][RANGE] = { 0 };
 static
 BYTE multiA[RANGE] = { 0 };
 
-// n * n^2
-//static
-BYTE matEE[SIZE_A * SIZE_A] = MAT_EE;
 #endif
 
 const
@@ -327,17 +324,23 @@ Res genAs(){
     //      = invA .x ( tp(A,A)^T .x EE)
     //      = invA .x ( tp(A^T,A^T) .x EE)
     BYTE matUnit[SIZE_A] = UNIT_MAT;
+    const BYTE matEE[SIZE_A * SIZE_A] = MAT_EE;
+
+    //allocating
+    matHat = (BYTE *)malloc(SIZE_A*SIZE_A*sizeof(BYTE));
+    matAcute = (BYTE *)malloc(SIZE_A*SIZE_A*sizeof(BYTE));
+    matGrave = (BYTE *)malloc(SIZE_A*SIZE_A*sizeof(BYTE) );
 
     tensorProductOfMat(matTensor, (const BYTE*)matTransA, (const BYTE*)matTransA);
-    multiplyMat(matRight, (const BYTE *)matTensor, (const BYTE *)matEE, dimsT);
+    multiplyMat(matRight, (const BYTE *)matTensor, matEE, dimsT);
     multiplyMat(matHat, (const BYTE *)matInvA, (const BYTE *)matRight, dimsB);
 
     tensorProductOfMat(matTensor, (const BYTE*)matTransA, (const BYTE*)matUnit);
-    multiplyMat(matRight, (const BYTE *)matTensor, (const BYTE *)matEE, dimsT);
+    multiplyMat(matRight, (const BYTE *)matTensor, matEE, dimsT);
     multiplyMat(matGrave, (const BYTE *)matInvA, (const BYTE *)matRight, dimsB);
 
     tensorProductOfMat(matTensor, (const BYTE*)matUnit, (const BYTE*)matTransA);
-    multiplyMat(matRight, (const BYTE *)matTensor, (const BYTE *)matEE, dimsT);
+    multiplyMat(matRight, (const BYTE *)matTensor, matEE, dimsT);
     multiplyMat(matAcute, (const BYTE *)matInvA, (const BYTE *)matRight, dimsB);
 
     return res;
@@ -390,6 +393,7 @@ Res setup4MultiTable(
                 multiA[val] ^= temp;
         }
     }
+
     return RES_OK;
 }
 
@@ -408,6 +412,12 @@ Res setup4Fundamental(){
     }
 
     setup4MultiTable();
+
+    //free matHat, matAcute, matGrave
+    free(matHat);
+    free(matAcute);
+    free(matGrave);
+
     return RES_OK;
 }
 

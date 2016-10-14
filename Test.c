@@ -17,9 +17,6 @@
 extern
 BYTE  matA[SIZE_A], matInvA[SIZE_A], matTransA[SIZE_A];
 
-extern
-BYTE matHat[SIZE_A * SIZE_A * SIZE_A / BITS], matGrave[SIZE_A * SIZE_A * SIZE_A / BITS], matAcute[SIZE_A * SIZE_A * SIZE_A / BITS], matEE[SIZE_A * SIZE_A];
-
 #endif
 
 static
@@ -88,10 +85,6 @@ void lookatMatA(){
     const int dimsM[4] = { SIZE_A, SIZE_A, SIZE_A, SIZE_A };
     multiplyMat(tem, matInvA, matTransA, dimsM);
     outputMat(tem, SIZE_A, "MatA * MatInvA");
-    outputMat(matAcute, SIZE_A*SIZE_A, "Acute");
-    outputMat(matGrave, SIZE_A*SIZE_A, "Grave");
-    outputMat(matHat, SIZE_A*SIZE_A, "Hat");
-    outputMat(matEE, SIZE_A*SIZE_A, "EE");
 }
 
 
