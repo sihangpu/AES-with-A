@@ -173,49 +173,6 @@ BYTE invGF(BYTE x){
     return y;
 }
 
-Res modularProduct(BYTE *mpRes, const BYTE *wordx, const BYTE *wordy, int index){
-/* Modular product of a(x) and b(x), where a(x) and b(x) both are four-term polynomials,
- * with coefficients that are finite field elements.
- */
-    int i;
-    if (mpRes == NULL) return RES_INVALID_POINTER;
-    for (i = 0; i < WORD_SIZE; ++i){
-        int j, k;
-        mpRes[i] = ZERO;
-        for (j = 0, k = i; j < WORD_SIZE; ++j, k = MINUS_MOD(k, 1, WORD_SIZE)){
-            if (wordx[k] == 0x01){
-                mpRes[i] ^= wordy[j];
-            }
-            else{
-                BYTE tem = ZERO;
-#if SIZE_A
-                if (index == 0){
-                    BYTE word = ZERO;
-                    const int dims[4] = { 1, BITS, SIZE_A, SIZE_A };
-                    BYTE rd = (BYTE)rand();
-
-                    if (!multiplyMat(&word, (const BYTE*)&rd, (const BYTE*)matInvA, dims))
-                        word ^= wordy[j];
-                    if (!multiplyMat(&tem, (const BYTE*)&word, (const BYTE*)matA, dims)){
-                        word = multiplyGF(wordx[k], tem);
-                        rd = multiplyGF(wordx[k], rd);
-                    }
-                    if (!multiplyMat(&tem, (const BYTE*)&word, (const BYTE*)matInvA, dims)
-                        && !multiplyMat(&word, (const BYTE*)&rd, (const BYTE*)matInvA, dims))
-                        ;
-                    mpRes[i] ^= tem ^ word;
-                    continue;
-                }
-
-#endif
-                tem = multiplyGF(wordx[k], wordy[j]);
-                mpRes[i] ^= tem;
-            }
-
-        }
-    }
-    return RES_OK;
-}
 
 Res multiplyMat(BYTE *mlRes, const BYTE *matx, const BYTE *maty, const int *dims){
 /* Matrix multiply : mulitplyMat(A, B) = A * B^T
@@ -248,7 +205,7 @@ Res multiplyMat(BYTE *mlRes, const BYTE *matx, const BYTE *maty, const int *dims
 
 
 BYTE multiplyGF(BYTE bytex, BYTE bytey){
-/* Multiplication over GF(2^8),and the irreducible polynomial is 0x011b
+/* Multiplication over GF(2^8),and the irreducible polynomial is 0x01F5
 */
     int bit;
     BYTE sum = ZERO;

@@ -5,7 +5,7 @@
 //  Created by benny on 16/4/22.
 //
 
-#include "AES.h"
+#include "SM4.h"
 #include <time.h>
 #include <stdio.h>
 
@@ -19,18 +19,14 @@ BYTE  matA[SIZE_A], matInvA[SIZE_A], matTransA[SIZE_A];
 
 #endif
 
-static
-const BYTE plain[NB*WORD_SIZE] = { 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, \
-0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34 };
-static
-const BYTE key[NK*WORD_SIZE] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, \
-0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
+const BYTE plain[NB*WORD_SIZE] = { 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, \
+		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10 };
+const BYTE key[NB*WORD_SIZE] = { 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, \
+		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10 };
 static
 BYTE tem[NB*WORD_SIZE] = { 0 };
 static
 BYTE cipher[NB*WORD_SIZE] = { 0 };
-static
-BYTE keyExpanded[NB*(NR + 1)*WORD_SIZE] = { 0 };
 
 #if MASK
     static
@@ -57,9 +53,6 @@ void outputMat(const BYTE *mat, int byts, const char str[]){
 void lookatPlainAndKey(){
     outputMat(plain, 16, "PlainText");
     outputMat(key, 16, "Key");
-
-    keyExpansion(keyExpanded, key);
-    outputMat(keyExpanded, NB*(NR + 1)*WORD_SIZE, "Key Schedule");
 }
 
 
@@ -92,7 +85,7 @@ void lookatMatA(){
 
 void multiplyGFTest(){
     const int bytex = 0;
-    const int bytey = 0;
+    const int bytey = 5;
 
 
     BYTE tensorRes[64*8] = { 0 };
@@ -102,10 +95,13 @@ void multiplyGFTest(){
     /* original multiplyGF
     */
     BYTE mgf = multiplyGF(plain[bytex], plain[bytey]);
+    outputMat(plain+bytex, 1, "Original input bytex");
+    outputMat(plain+bytey, 1, "Original input bytey");
+
     outputMat(&mgf, 1, "Original Multiply in GF");
 
     BYTE mgf2 = powGF(plain[bytex], 0);
-    outputMat(&mgf2, 1, "Original Multiply in GF(square)");
+    outputMat(&mgf2, 1, "Original square in GF");
 
     const int dimsT[4] = { 1, BITS, SIZE_A, SIZE_A };
 
@@ -113,6 +109,8 @@ void multiplyGFTest(){
      */
     BYTE inp[MASK] = { 0 };
     BYTE inp2[MASK] = { 0 };
+    BYTE mgfM[MASK] = { 0 };
+    BYTE tem2 = 0xFF;
     int j;
     for (j = 0; j < MASK; ++j){
         inp[j] = encoded[j][bytex];
@@ -132,11 +130,11 @@ void multiplyGFTest(){
     tem[0] ^= tem[1] ^ tem[2] ^ tem[3];
     outputMat(tem, 1);
 #endif
-    BYTE mgfM[MASK] = { 0 };
+
+
     multiplyGFMasked(mgfM, inp, inp2);
     outputMat(mgfM, MASK, "Masking Multiply in GF");
 
-    BYTE tem2 = 0xFF;
 
 #if !SIZE_A
     tem2 = mgfM[0];
@@ -157,15 +155,15 @@ int main(){
     srand((BYTE)time(NULL));
     lookatPlainAndKey();
 
-#if SIZE_A
-    setup4AES();
+#if (SIZE_A && MASK)
+    setupSM4();
+    encodeDecodeTest();
     lookatMatA();
     multiplyGFTest();
-#endif
-
-#if MASK
+#elif MASK
     encodeDecodeTest();
 #endif
+
 
 
 
